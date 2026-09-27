@@ -327,7 +327,7 @@
       <label>Responsavel Sabesp - Nome<input id="teo-sabesp-nome" type="text"></label>
       <label>Responsavel Sabesp - Matricula<input id="teo-sabesp-matricula" type="text"></label>
       <label>Responsavel Contratada - Nome<input id="teo-contratada-nome" type="text"></label>
-      <label>Data da Inspecao<input id="teo-inspecao" type="date"></label>
+      <label>Data da Inspeção<input id="teo-inspecao" type="date"></label>
       <label class="wide">Logo da Contratada <input id="teo-logo" type="file" accept="image/png,image/jpeg"><span class="file-button">Selecionar imagem</span><span id="teo-logo-name" class="file-name">Nenhuma imagem selecionada</span></label>
     </div>
     <div class="actions teo-actions">
@@ -422,194 +422,6 @@ function readWorkbook(file){
   });
 }
 
-/* ---------- nucleo do calculo antigo removido do fluxo TEO ---------- */
-/*
-function processar(){
-  var method = document.getElementById("opt-method").value;
-  var negMode = document.getElementById("opt-neg").value;
-
-  var wsSaldo = findSheet(state.log,["chaves com saldo","chave saldo","saldo"]);
-  var wsModelo = findSheet(state.log,["modelo upload","modelo","upload"]);
-  if(!wsSaldo) throw new Error("Nao encontrei a guia 'Chaves com Saldo' no LOG.");
-  if(!wsModelo) throw new Error("Nao encontrei a guia 'Modelo Upload' no LOG.");
-  var auxWs = findSheet(state.aux,["planilha1","base","aux"]) || state.aux.Sheets[state.aux.SheetNames[0]];
-
-  var saldo = sheetRows(wsSaldo);
-  var modelo = sheetRows(wsModelo);
-  var aux = sheetRows(auxWs);
-
-  // 1) Oferta: agrupa chaves por (pep|classe)
-  var grp = {};
-  var chaveMeta = {};
-  for(var i=0;i<saldo.rows.length;i++){
-    var rr=saldo.rows[i];
-    var chave = pick(rr,"CHAVE"); if(!chave) continue;
-    var parts = String(chave).split("|");
-    var pep=parts[0], classe=(parts[1]||"").trim(), mes=parts[3]||"";
-    var s = toNum(pick(rr,"SALDO_DISPONIVEL","SALDO DISPONIVEL","SALDO"));
-    var g = pep+"||"+classe;
-    if(!grp[g]) grp[g]=[];
-    grp[g].push({chave:chave,mes:mes,saldo:s});
-    chaveMeta[chave]={pep:pep,classe:classe,mes:mes,saldo:s};
-  }
-
-  // 2) Demanda: base auxiliar (ativo+classe)
-  var demand={};
-  var assetMeta={};
-  var order=[];
-  for(var a=0;a<aux.rows.length;a++){
-    var ar=aux.rows[a];
-    var ativo = pick(ar,"ATIVO","IMOBILIZADO"); if(ativo==null) continue;
-    var classeA = String(pick(ar,"CLASSE")||"").trim();
-    var val = pick(ar,"VALOR");
-    if(!(ativo in assetMeta)){
-      assetMeta[ativo]={
-        inv:pick(ar,"N INVENTARIO","NO INVENTARIO","NUMERO DO INVENTARIO","INVENTARIO"),
-        data:pick(ar,"DATA UNITIZACAO","DATA DA UNITIZACAO","DATA"),
-        gear:pick(ar,"N SOLICITACAO GEAR","NO SOLICITACAO GEAR","SOLICITACAO GEAR","GEAR")
-      };
-      order.push(ativo);
-    }
-    if(val==null||val==="") continue;
-    var dk=ativo+"||"+classeA;
-    demand[dk]=(demand[dk]||0)+toNum(val);
-  }
-
-  // 3) Alocacao
-  var alloc={};
-  var reconChave={};
-  var reconAC=[];
-  var alerts=[];
-  for(var gk in grp){
-    var gp=gk.split("||"); var gpep=gp[0], gclasse=gp[1];
-    var lst=grp[gk].slice().sort(function(x,y){ return x.mes<y.mes?-1:(x.mes>y.mes?1:0); });
-    var net=0; for(var n0=0;n0<lst.length;n0++) net+=lst[n0].saldo;
-    var sumPos=0; for(var n1=0;n1<lst.length;n1++){ if(lst[n1].saldo>0) sumPos+=lst[n1].saldo; }
-    var pos=[]; for(var n2=0;n2<lst.length;n2++){ if(lst[n2].saldo>0) pos.push({chave:lst[n2].chave,mes:lst[n2].mes,rem:lst[n2].saldo,saldo:lst[n2].saldo}); }
-    var negCount=0; for(var n3=0;n3<lst.length;n3++){ if(lst[n3].saldo<0) negCount++; }
-    var cap = (negMode==="net")?net:sumPos;
-
-    var dems=[];
-    for(var od=0;od<order.length;od++){
-      var at=order[od]; var nd=demand[at+"||"+gclasse]||0;
-      if(nd>EPS) dems.push({ativo:at,need:nd});
-    }
-    if(dems.length===0) continue;
-    var totalDem=0; for(var td=0;td<dems.length;td++) totalDem+=dems[td].need;
-
-    if(totalDem > cap+EPS)
-      alerts.push({lvl:"err",msg:"INVIAVEL - "+gpep+" / classe "+gclasse+": demanda R$ "+fmtBRL(totalDem)+" maior que a capacidade "+(negMode==="net"?"liquida":"positiva")+" R$ "+fmtBRL(cap)+"."});
-    if(negCount)
-      alerts.push({lvl:"warn",msg:gpep+" / classe "+gclasse+": "+negCount+" chave(s) com saldo negativo ("+(negMode==="net"?"compensadas no liquido":"ignoradas")+"); recebem 0."});
-
-    for(var d=0;d<dems.length;d++){
-      var rest=dems[d].need;
-      if(method==="prop" && sumPos>EPS){
-        // 1a passada proporcional ao saldo, mas NUNCA estourando o teto de cada chave (col. J)
-        for(var p=0;p<pos.length;p++){
-          if(rest<=EPS) break;
-          var share=dems[d].need*(pos[p].saldo/sumPos);
-          var vv=Math.min(share,pos[p].rem,rest);
-          if(vv>EPS){ var kp=pos[p].chave+"||"+dems[d].ativo; alloc[kp]=(alloc[kp]||0)+vv; reconChave[pos[p].chave]=(reconChave[pos[p].chave]||0)+vv; pos[p].rem-=vv; rest-=vv; }
-        }
-        // mop-up FIFO do residuo de arredondamento proporcional nas chaves que ainda tem saldo
-        for(var p2=0;p2<pos.length;p2++){
-          if(rest<=EPS) break;
-          var take2=Math.min(rest,pos[p2].rem);
-          if(take2>EPS){ var kp2=pos[p2].chave+"||"+dems[d].ativo; alloc[kp2]=(alloc[kp2]||0)+take2; reconChave[pos[p2].chave]=(reconChave[pos[p2].chave]||0)+take2; pos[p2].rem-=take2; rest-=take2; }
-        }
-      } else {
-        for(var q=0;q<pos.length;q++){
-          if(rest<=EPS) break;
-          var take=Math.min(rest,pos[q].rem);
-          if(take>EPS){ var kf=pos[q].chave+"||"+dems[d].ativo; alloc[kf]=(alloc[kf]||0)+take; reconChave[pos[q].chave]=(reconChave[pos[q].chave]||0)+take; pos[q].rem-=take; rest-=take; }
-        }
-      }
-      reconAC.push({ativo:dems[d].ativo,classe:gclasse,demanda:dems[d].need,alocado:dems[d].need-Math.max(rest,0)});
-      if(rest>EPS) alerts.push({lvl:"err",msg:"FALTA - ativo "+dems[d].ativo+" / classe "+gclasse+": R$ "+fmtBRL(rest)+" nao alocado (sem saldo)."});
-    }
-  }
-
-  // 4) Preenche Modelo Upload (mantem as linhas do template)
-  var out=[];
-  for(var m=0;m<modelo.rows.length;m++){
-    var mr=modelo.rows[m];
-    var mAtivo=pick(mr,"IMOBILIZADO","ATIVO");
-    var mChave=pick(mr,"CHAVE");
-    var mVal=alloc[mChave+"||"+mAtivo]||0;
-    var meta=assetMeta[mAtivo]||{};
-    out.push({
-      IMOBILIZADO:mAtivo, CHAVE:mChave,
-      DESCRICAO_CLASSE_CUSTO:pick(mr,"DESCRICAO CLASSE CUSTO","DESCRICAO_CLASSE_CUSTO"),
-      DESCRICAO_MATERIAL:pick(mr,"DESCRICAO MATERIAL","DESCRICAO_MATERIAL"),
-      VALOR_CONSUMIDO:Math.round(mVal*100)/100,
-      INVENTARIO:(meta.inv!=null?meta.inv:null), DATA:(meta.data!=null?meta.data:null), GEAR:(meta.gear!=null?meta.gear:null)
-    });
-  }
-
-  // metricas
-  var ativosSet={}; for(var z=0;z<out.length;z++) ativosSet[out[z].IMOBILIZADO]=1;
-  var ativos=Object.keys(ativosSet).length;
-  var totalAloc=0; for(var z2=0;z2<out.length;z2++) totalAloc+=out[z2].VALOR_CONSUMIDO;
-  var totDem=0,totAl=0; for(var z3=0;z3<reconAC.length;z3++){ totDem+=reconAC[z3].demanda; totAl+=reconAC[z3].alocado; }
-  var cob= totDem>0 ? (totAl/totDem*100) : 100;
-
-  // localiza o NOME da guia Modelo Upload no workbook original (para reescrever in-place)
-  var modeloName=null;
-  for(var sn=0;sn<state.log.SheetNames.length;sn++){ if(state.log.Sheets[state.log.SheetNames[sn]]===wsModelo){ modeloName=state.log.SheetNames[sn]; break; } }
-
-  state.result={out:out,reconAC:reconAC,chaveMeta:chaveMeta,reconChave:reconChave,alerts:alerts,ativos:ativos,totalAloc:totalAloc,cob:cob,
-                alloc:alloc,assetMeta:assetMeta,modeloName:modeloName};
-  render();
-}
-
-// ---------- render antigo ----------
-function fmtCell(v){ if(v==null||v==="") return "-"; return v; }
-function fmtDate(v){ if(v==null||v==="") return "-"; if(v instanceof Date) return v.toLocaleDateString("pt-BR"); return v; }
-function render(){
-  var r=state.result;
-  document.getElementById("results").classList.remove("hidden");
-  document.getElementById("results").classList.add("reveal");
-  document.getElementById("btn-download").classList.remove("hidden");
-  document.getElementById("s-ativos").textContent=r.ativos;
-  document.getElementById("s-alocado").textContent=fmtBRL(r.totalAloc);
-  document.getElementById("s-cob").textContent=r.cob.toFixed(1)+"%";
-  document.getElementById("s-alert").textContent=r.alerts.length;
-  document.getElementById("btn-pdf").disabled=false;
-  document.getElementById("st-cob").className="stat "+(r.cob>99.99?"ok":"warn");
-  var hasErr=false; for(var e=0;e<r.alerts.length;e++){ if(r.alerts[e].lvl==="err") hasErr=true; }
-  document.getElementById("st-alert").className="stat "+(hasErr?"err":(r.alerts.length?"warn":"ok"));
-
-  var h="<tr><th>Imobilizado</th><th>Chave</th><th>Classe</th><th class='num'>Valor consumido</th><th>Inventario</th><th>Data</th><th>GEAR</th></tr>";
-  for(var i=0;i<r.out.length;i++){ var o=r.out[i];
-    h+="<tr><td>"+esc(o.IMOBILIZADO)+"</td><td>"+esc(o.CHAVE)+"</td><td>"+esc(o.DESCRICAO_CLASSE_CUSTO||"")+"</td>"+
-       "<td class='num'>"+(o.VALOR_CONSUMIDO?fmtBRL(o.VALOR_CONSUMIDO):"-")+"</td>"+
-       "<td>"+esc(fmtCell(o.INVENTARIO))+"</td><td>"+esc(fmtDate(o.DATA))+"</td><td>"+esc(fmtCell(o.GEAR))+"</td></tr>";
-  }
-  document.getElementById("t-prev").innerHTML=h;
-
-  h="<tr><th>Ativo</th><th>Classe</th><th class='num'>Demanda</th><th class='num'>Alocado</th><th class='num'>Diferenca</th><th>Status</th></tr>";
-  for(var a=0;a<r.reconAC.length;a++){ var ac=r.reconAC[a]; var dif=ac.demanda-ac.alocado; var ok=Math.abs(dif)<EPS;
-    h+="<tr><td>"+esc(ac.ativo)+"</td><td>"+esc(ac.classe)+"</td><td class='num'>"+fmtBRL(ac.demanda)+"</td>"+
-       "<td class='num'>"+fmtBRL(ac.alocado)+"</td><td class='num'>"+fmtBRL(dif)+"</td>"+
-       "<td><span class='badge "+(ok?"b-ok":"b-err")+"'>"+(ok?"OK":"FALTA")+"</span></td></tr>";
-  }
-  document.getElementById("t-ac").innerHTML=h;
-
-  h="<tr><th>Chave</th><th class='num'>Saldo</th><th class='num'>Consumido</th><th class='num'>Restante</th><th>Status</th></tr>";
-  for(var ch in r.chaveMeta){ var mm=r.chaveMeta[ch]; var cons=r.reconChave[ch]||0; var rem=mm.saldo-cons;
-    var over=cons>mm.saldo+EPS; var neg=mm.saldo<0;
-    h+="<tr><td>"+esc(ch)+"</td><td class='num "+(neg?"neg":"")+"'>"+fmtBRL(mm.saldo)+"</td><td class='num'>"+(cons?fmtBRL(cons):"-")+"</td>"+
-       "<td class='num'>"+fmtBRL(rem)+"</td><td><span class='badge "+(over?"b-err":(neg?"b-warn":"b-ok"))+"'>"+(over?"ESTOURO":(neg?"NEGATIVO":"OK"))+"</span></td></tr>";
-  }
-  document.getElementById("t-ch").innerHTML=h;
-
-  var al=document.getElementById("al-list");
-  if(!r.alerts.length){ al.innerHTML="<div class='alert ok'>Nenhum alerta. Todas as demandas foram atendidas dentro dos saldos.</div>"; }
-  else{ var ah=""; for(var x=0;x<r.alerts.length;x++){ ah+="<div class='alert "+(r.alerts[x].lvl==="err"?"err":"warn")+"'>"+esc(r.alerts[x].msg)+"</div>"; } al.innerHTML=ah; }
-}
-
-*/
 function fmtCell(value){ return value==null||value===""?"-":value; }
 function fmtDate(value){ if(value==null||value==="") return "-"; if(value instanceof Date) return value.toLocaleDateString("pt-BR"); return value; }
 function normalizeHeader(value){
@@ -859,7 +671,7 @@ doc.addImage(
   y+=7; y=addPdfSection(doc,"2. Responsável Sabesp",y); doc.setDrawColor(190,190,190); doc.rect(12,y,186,8); addPdfField(doc,"Nome:",d.sabespNome,14,y+5,42); y+=8; doc.rect(12,y,186,8); addPdfField(doc,"Matrícula:",d.sabespMatricula,14,y+5,42);
   y+=14; y=addPdfSection(doc,"3. Responsável Contratada",y); doc.rect(12,y,186,8); addPdfField(doc,"Nome:",d.contratadaNome,14,y+5,42); y+=8; doc.rect(12,y,186,8); addPdfField(doc,"Data da Inspeção:",d.inspecao,14,y+5,42);
   y+=14; doc.setFont("helvetica","normal"); doc.setFontSize(8.5); var text="Os responsáveis abaixo declaram que os ativos relacionados no Anexo I, instalados na área de concessão da Companhia de Saneamento Básico do Estado de São Paulo S.A. (SABESP) e objeto do referido Contrato, foram devidamente implementados, comissionados, conectados ao Sistema da Concessionária."; doc.text(doc.splitTextToSize(text,186),12,y); y+=15; doc.text(doc.splitTextToSize("Ressalta-se, ainda, que todos os custos diretos associados aos ativos mencionados no Anexo I encontram-se devidamente apropriados no PEP.",186),12,y); y=238;
-  doc.line(12,y,87,y); doc.line(112,y,187,y); doc.text("Responsável Contratada:",14,y+8); doc.text("Responsável Sabesp:",114,y+8); doc.text("Data: ____/____/_______",14,y+14); doc.text("Data: ____/____/_______",114,y+14); drawPdfFooter(doc);
+  doc.line(12,y,87,y); doc.line(112,y,187,y); doc.text("Responsável Contratada",14,y+8); doc.text("Responsável Sabesp",114,y+8); doc.text("Data: ____/____/_______",14,y+14); doc.text("Data: ____/____/_______",114,y+14); drawPdfFooter(doc);
   doc.addPage("a4","landscape"); addAnexoHeader(doc); if(state.sabespLogoData){
 doc.addImage(
 state.sabespLogoData,
@@ -917,72 +729,12 @@ function bindWorkbookDrop(){
   input.addEventListener("change",function(event){ if(event.target.files[0]) loadFile(event.target.files[0]); });
 }
 
-/*
-// ---------- estilo e download antigos do LOG ----------
-var LARANJA={fill:{patternType:"solid",fgColor:{rgb:"FFF26C3F"}},font:{bold:true,color:{rgb:"FFFFFFFF"}}};
-// Re-aplica o laranja na linha de cabecalho (a lib perde o fill no round-trip por diferenca de formato).
-function carimbaCabecalho(ws){
-  if(!ws||!ws["!ref"]) return;
-  var range=XLSX.utils.decode_range(ws["!ref"]);
-  for(var c=range.s.c;c<=range.e.c;c++){
-    var addr=XLSX.utils.encode_cell({r:range.s.r,c:c});
-    if(ws[addr]) ws[addr].s=LARANJA;
-  }
-}
-
-// ---------- download antigo ----------
-function baixar(){
-  var r=state.result; if(!r) return;
-  var wb=state.log;  // mesmo workbook que o usuario subiu
-
-  // 1) preenche a guia Modelo Upload IN-PLACE (mantem Chaves com Saldo e a formatacao intactas)
-  var wsModelo=wb.Sheets[r.modeloName];
-  fillModelo(wsModelo, r.alloc, r.assetMeta);
-
-  // re-carimba o cabecalho laranja das guias de dados (preserva o visual do LOG original)
-  for(var si=0;si<wb.SheetNames.length;si++){ carimbaCabecalho(wb.Sheets[wb.SheetNames[si]]); }
-
-  // 2) (re)cria a guia Conferencia
-  var confName="Conferencia";
-  if(wb.SheetNames.indexOf(confName)>-1){
-    delete wb.Sheets[confName];
-    wb.SheetNames.splice(wb.SheetNames.indexOf(confName),1);
-  }
-  var conf=[["CONFERENCIA ATIVO x CLASSE"],["Ativo","Classe","Demanda","Alocado","Diferenca"]];
-  for(var a=0;a<r.reconAC.length;a++){ var ac=r.reconAC[a]; conf.push([ac.ativo,ac.classe,ac.demanda,ac.alocado,ac.demanda-ac.alocado]); }
-  conf.push([]); conf.push(["CONFERENCIA POR CHAVE (saldo da coluna J)"]); conf.push(["Chave","Saldo disponivel","Consumido","Restante"]);
-  for(var ch in r.chaveMeta){ var mm=r.chaveMeta[ch]; var c=r.reconChave[ch]||0; conf.push([ch,mm.saldo,c,mm.saldo-c]); }
-  conf.push([]); conf.push(["ALERTAS"]);
-  if(!r.alerts.length){ conf.push(["OK","Nenhum alerta. Todas as demandas atendidas dentro dos saldos."]); }
-  for(var x=0;x<r.alerts.length;x++){ conf.push([r.alerts[x].lvl.toUpperCase(),r.alerts[x].msg]); }
-  var ws2=XLSX.utils.aoa_to_sheet(conf);
-  ws2["!cols"]=[{wch:50},{wch:18},{wch:16},{wch:16},{wch:14}];
-  // cabecalhos/titulos da Conferencia em PRETO com fonte branca
-  var preto={fill:{patternType:"solid",fgColor:{rgb:"FF000000"}},font:{bold:true,color:{rgb:"FFFFFFFF"}}};
-  var titleRows=[]; for(var ti=0;ti<conf.length;ti++){ var first=conf[ti][0]; if(first==="Ativo"||first==="Chave"||(typeof first==="string"&&first.indexOf("CONFERENCIA")===0)||first==="ALERTAS"){ titleRows.push(ti); } }
-  for(var tr=0;tr<titleRows.length;tr++){
-    var rr=titleRows[tr];
-    for(var cc=0;cc<5;cc++){
-      var addr=XLSX.utils.encode_cell({r:rr,c:cc});
-      if(ws2[addr]) ws2[addr].s=preto;
-    }
-  }
-  XLSX.utils.book_append_sheet(wb,ws2,confName);
-
-  // 3) nome de saida derivado do arquivo original
-  var base=(state.logName||"consulta_log_unitizacao.xlsx").replace(/\.(xlsx|xls)$/i,"");
-  XLSX.writeFile(wb, base+"_PREENCHIDO.xlsx", {cellStyles:true});
-}
-
-*/
 /* ---------- UI ---------- */
 // impede o navegador de abrir/baixar o arquivo se ele for solto fora da caixa
 window.addEventListener("dragover",function(e){ e.preventDefault(); }, false);
 window.addEventListener("drop",function(e){ e.preventDefault(); }, false);
 
 /* ---------- toggle de tema claro/escuro ---------- */
-
-
 
 document.addEventListener("DOMContentLoaded",function(){
   // estado inicial dos botoes do toggle
