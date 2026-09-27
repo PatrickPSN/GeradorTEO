@@ -566,10 +566,10 @@ function drawPdfFooter(doc,landscape){
     doc.setDrawColor(30,30,30); doc.setLineWidth(.25); doc.rect(x,y,w,h);
     doc.line(x+48,y,x+48,y+10); doc.line(x,y+10,x+w,y+10);
     doc.setFontSize(7); doc.text("Código do Formulário",x+2,y+5); doc.text("Nome do Formulário",x+50,y+5);
-    doc.setFontSize(8); doc.text("FE-ATIVOS0005 - V.2",x+2,y+9); doc.text("TEO - TERMO DE ENTRADA EM OPERAÇÃO",x+50,y+9);
+    doc.setFontSize(8); doc.text("FE-ATIVOS0005 - V.3",x+2,y+9); doc.text("TEO - TERMO DE ENTRADA EM OPERAÇÃO",x+50,y+9);
     doc.setFontSize(7); doc.text("Vinculado ao Instrumento",x+2,y+15); doc.setFontSize(7); doc.text("DOCUMENTAÇÃO TÉCNICA PARA UNITIZAÇÃO E DESATIVAÇÃO DE ATIVOS - PE-ATIVOS0003.",x+2,y+20);
   } else {
-    var ly=202; doc.text("Código do Formulário: FE-ATIVOS0005 - V.2",14,ly); doc.text("TEO - TERMO DE ENTRADA EM OPERAÇÃO",135,ly); doc.text("Vinculado ao Instrumento: DOCUMENTAÇÃO TÉCNICA PARA UNITIZAÇÃO E DESATIVAÇÃO DE ATIVOS - PE-ATIVOS0003.",14,ly+5); doc.text("Página "+page,265,ly+10);
+    var ly=202; doc.text("Código do Formulário: FE-ATIVOS0005 - V.3",14,ly); doc.text("TEO - TERMO DE ENTRADA EM OPERAÇÃO",135,ly); doc.text("Vinculado ao Instrumento: DOCUMENTAÇÃO TÉCNICA PARA UNITIZAÇÃO E DESATIVAÇÃO DE ATIVOS - PE-ATIVOS0003.",14,ly+5); doc.text("Página "+page,265,ly+10);
   }
 }
 function removeYellowBackground(dataUrl){
