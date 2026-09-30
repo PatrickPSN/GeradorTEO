@@ -625,7 +625,7 @@ function addAnexoHeader(doc){
   doc.setFont("helvetica","normal");
   doc.text("Vinculado ao Instrumento",30,17);
   doc.setFont("helvetica","bold");
-  doc.text("FE-ATIVOS0005 V.1 - TEO - Termo de Entrada em Operação",30,21);
+  doc.text("FE-ATIVOS0005 V.3 - TEO - Termo de Entrada em Operação",30,21);
   doc.line(263,5,263,23); doc.setFontSize(7); doc.text("Número do Anexo",265,10); doc.setFontSize(9); doc.text("0001",276,17,{align:"center"});
   doc.setFillColor(14,174,224); doc.roundedRect(7,25,283,15,2,2,"F"); doc.setTextColor(255,255,255); doc.setFontSize(15); doc.text("Anexo 1 - Relação de Ativos - Entrada em Operação",16,35);
 }
@@ -670,7 +670,7 @@ doc.addImage(
   }
   y+=7; y=addPdfSection(doc,"2. Responsável Sabesp",y); doc.setDrawColor(190,190,190); doc.rect(12,y,186,8); addPdfField(doc,"Nome:",d.sabespNome,14,y+5,42); y+=8; doc.rect(12,y,186,8); addPdfField(doc,"Matrícula:",d.sabespMatricula,14,y+5,42);
   y+=14; y=addPdfSection(doc,"3. Responsável Contratada",y); doc.rect(12,y,186,8); addPdfField(doc,"Nome:",d.contratadaNome,14,y+5,42); y+=8; doc.rect(12,y,186,8); addPdfField(doc,"Data da Inspeção:",d.inspecao,14,y+5,42);
-  y+=14; doc.setFont("helvetica","normal"); doc.setFontSize(8.5); var text="Os responsáveis abaixo declaram que os ativos relacionados no Anexo I, instalados na área de concessão da Companhia de Saneamento Básico do Estado de São Paulo S.A. (SABESP) e objeto do referido Contrato, foram devidamente implementados, comissionados, conectados ao Sistema da Concessionária."; doc.text(doc.splitTextToSize(text,186),12,y); y+=15; doc.text(doc.splitTextToSize("Ressalta-se, ainda, que todos os custos diretos associados aos ativos mencionados no Anexo I encontram-se devidamente apropriados no PEP.",186),12,y); y=238;
+  y+=14; doc.setFont("helvetica","normal"); doc.setFontSize(8.5); var text="Os responsáveis abaixo declaram que os ativos relacionados no Anexo I, instalados na área de concessão da Companhia de Saneamento Básico do Estado de São Paulo S.A. (SABESP) e objeto do referido Contrato, foram devidamente implementados, comissionados, conectados ao Sistema da Concessionária."; doc.text(doc.splitTextToSize(text,186),12,y); y+=15; doc.text(doc.splitTextToSize("",186),12,y); y=238;
   doc.line(12,y,87,y); doc.line(112,y,187,y); doc.text("Responsável Contratada",14,y+8); doc.text("Responsável Sabesp",114,y+8); doc.text("Data: ____/____/_______",14,y+14); doc.text("Data: ____/____/_______",114,y+14); drawPdfFooter(doc);
   doc.addPage("a4","landscape"); addAnexoHeader(doc); if(state.sabespLogoData){
 doc.addImage(
@@ -698,6 +698,26 @@ doc.setFontSize(8); doc.setFont("helvetica","normal");
     10:{cellWidth:20}, // Modelo
     11:{cellWidth:20} // Data Entrada
 }}); drawPdfFooter(doc,true);
+/* ===== MARCA D'AGUA ===== */
+var totalPages = doc.internal.getNumberOfPages();
+for(var p=1; p<=totalPages; p++){
+doc.setPage(p);
+var w = doc.internal.pageSize.getWidth();
+var h = doc.internal.pageSize.getHeight();
+doc.setTextColor(240,240,240);
+doc.setFont("helvetica","bold");
+doc.setFontSize(90);
+doc.text(
+"RASCUNHO",
+w * 0.50,
+h * 0.65,
+{
+align:"center",
+angle:45
+}
+);
+}
+/* ===== FIM MARCA D'AGUA ===== */
   var base=(d.pep||"TEO").replace(/[^a-z0-9_-]+/gi,"_"); doc.save(base+"_TEO.pdf");
 }
 
