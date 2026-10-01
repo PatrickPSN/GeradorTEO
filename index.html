@@ -698,26 +698,7 @@ doc.setFontSize(8); doc.setFont("helvetica","normal");
     10:{cellWidth:20}, // Modelo
     11:{cellWidth:20} // Data Entrada
 }}); drawPdfFooter(doc,true);
-/* ===== MARCA D'AGUA ===== */
-var totalPages = doc.internal.getNumberOfPages();
-for(var p=1; p<=totalPages; p++){
-doc.setPage(p);
-var w = doc.internal.pageSize.getWidth();
-var h = doc.internal.pageSize.getHeight();
-doc.setTextColor(240,240,240);
-doc.setFont("helvetica","bold");
-doc.setFontSize(90);
-doc.text(
-"RASCUNHO",
-w * 0.50,
-h * 0.65,
-{
-align:"center",
-angle:45
-}
-);
-}
-/* ===== FIM MARCA D'AGUA ===== */
+
   var base=(d.pep||"TEO").replace(/[^a-z0-9_-]+/gi,"_"); doc.save(base+"_TEO.pdf");
 }
 
